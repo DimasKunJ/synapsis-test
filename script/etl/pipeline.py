@@ -212,6 +212,90 @@ def transform_sql_data(sql_data: pl.DataFrame) -> pl.DataFrame:
     return daily_production
 
 
+def fill_missing_iot_data(iot_data: pl.DataFrame) -> pl.DataFrame:
+    """
+    Fill missing IoT data by forward filling the average value from previous day.
+
+    Args:
+        iot_data (pl.DataFrame): DataFrame containing the IoT data.
+
+    Returns:
+        pl.DataFrame: DataFrame with missing dates filled.
+    """
+
+    count_equipment = (
+        iot_data.sort(["timestamp", "equipment_id"])
+        .group_by("timestamp")
+        .agg(
+            pl.col("equipment_id").n_unique().alias("unique_equipment_count"),
+        )
+        .filter(pl.col("unique_equipment_count") < iot_data["equipment_id"].n_unique())
+    )
+
+    incomplete_data = (
+        iot_data.filter(
+            iot_data["timestamp"].is_in(count_equipment["timestamp"].to_numpy())
+        )["timestamp", "equipment_id"]
+        .group_by("timestamp")
+        .agg(
+            pl.col("equipment_id").sum().alias("list_equipment_id"),
+        )
+    )
+
+    missing_equipment = incomplete_data.with_columns(
+        pl.when(~(pl.col("list_equipment_id").str.contains("TR001")))
+        .then(1)
+        .otherwise(0)
+        .alias("TR001"),
+        pl.when(~(pl.col("list_equipment_id").str.contains("TR002")))
+        .then(1)
+        .otherwise(0)
+        .alias("TR002"),
+        pl.when(~(pl.col("list_equipment_id").str.contains("TR003")))
+        .then(1)
+        .otherwise(0)
+        .alias("TR003"),
+        pl.when(~(pl.col("list_equipment_id").str.contains("TR004")))
+        .then(1)
+        .otherwise(0)
+        .alias("TR004"),
+        pl.when(~(pl.col("list_equipment_id").str.contains("TR005")))
+        .then(1)
+        .otherwise(0)
+        .alias("TR005"),
+    ).drop("list_equipment_id")
+
+    missing_value = (
+        missing_equipment.unpivot(index=["timestamp"])
+        .filter(pl.col("value") == 1)
+        .drop("value")
+        .rename({"variable": "equipment_id"})
+        .with_columns(
+            pl.col("timestamp").dt.date().dt.offset_by("-1d").alias("yesterday")
+        )
+        .join(
+            iot_data.with_columns(pl.col("timestamp").dt.date().alias("yesterday")),
+            how="inner",
+            left_on=["yesterday", "equipment_id"],
+            right_on=["yesterday", "equipment_id"],
+        )
+        .group_by(["timestamp", "yesterday", "equipment_id"])
+        .agg(pl.col("fuel_consumption").mean())
+        .with_columns(
+            pl.lit("active").alias("status"),
+            pl.lit(False).alias("maintenance_alert"),
+        )[
+            "timestamp",
+            "equipment_id",
+            "status",
+            "fuel_consumption",
+            "maintenance_alert",
+        ]
+    )
+
+    return missing_value
+
+
 def transform_iot_data(iot_data: pl.DataFrame) -> pl.DataFrame:
     """
     Transform IoT data by renaming columns and converting types.
@@ -222,6 +306,10 @@ def transform_iot_data(iot_data: pl.DataFrame) -> pl.DataFrame:
     Returns:
         pl.DataFrame: Transformed DataFrame.
     """
+    missing_data = fill_missing_iot_data(iot_data)
+
+    iot_data = pl.concat([iot_data, missing_data])
+
     if iot_data.is_empty():
         raise ValueError("IoT data is empty")
 
