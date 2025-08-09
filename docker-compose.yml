@@ -4,7 +4,7 @@ services:
     container_name: mysqldb-source
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: example
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
       - ./data/mysql:/docker-entrypoint-initdb.d
     ports:
@@ -23,7 +23,8 @@ services:
   #   working_dir: /app
   #   networks:
   #     - etl-networks
-  #   command: sh -c "while true; do sleep 3600; done"
+  #   command: 
+  #     sh -c "while true; do sleep 3600; done"
     # python pipeline.py
 
 networks:

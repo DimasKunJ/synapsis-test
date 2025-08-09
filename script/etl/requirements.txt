@@ -2,3 +2,4 @@ polars
 connectorx
 pyarrow
 black
+python-dotenv
