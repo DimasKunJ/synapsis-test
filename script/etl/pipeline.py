@@ -153,7 +153,10 @@ def load_weather_data(start_date, end_date) -> pl.DataFrame:
                 "precipitation_sum": "total_precipitation",
             }
         )
-    ).filter(pl.col("mean_temperature").is_not_null() & pl.col("total_precipitation").is_not_null())
+    ).filter(
+        pl.col("mean_temperature").is_not_null()
+        & pl.col("total_precipitation").is_not_null()
+    )
 
     return weather_data
 
@@ -194,7 +197,9 @@ def get_anomaly_iot_data(iot_data: pl.DataFrame) -> pl.DataFrame:
     if "equipment_utilization" not in iot_data.columns:
         raise ValueError("IoT data must contain 'equipment_utilization' column")
 
-    anomaly_iot_data = iot_data.filter((pl.col('equipment_utilization') < 0) | (pl.col('equipment_utilization') > 1))
+    anomaly_iot_data = iot_data.filter(
+        (pl.col("equipment_utilization") < 0) | (pl.col("equipment_utilization") > 1)
+    )
     return anomaly_iot_data
 
 
@@ -217,8 +222,12 @@ def get_anomaly_weather_data(weather_data: pl.DataFrame) -> pl.DataFrame:
     if "total_precipitation" not in weather_data.columns:
         raise ValueError("Weather data must contain 'total_precipitation' column")
 
-    anomaly_weather_data = weather_data.filter((pl.col('mean_temperature').is_null()) | (pl.col('total_precipitation').is_null()))
+    anomaly_weather_data = weather_data.filter(
+        (pl.col("mean_temperature").is_null())
+        | (pl.col("total_precipitation").is_null())
+    )
     return anomaly_weather_data
+
 
 def transform_sql_data(sql_data: pl.DataFrame) -> pl.DataFrame:
     """
@@ -359,15 +368,22 @@ def transform_iot_data(iot_data: pl.DataFrame) -> pl.DataFrame:
     total_equipment = iot_data["equipment_id"].n_unique()
 
     iot_data_daily = (
-        iot_data.group_by(pl.col("timestamp").dt.date())
-        .agg(
-            ((pl.col("status") == "active").sum() / (24 * total_equipment)).alias(
-                "equipment_utilization"
-            ),
-            pl.col("fuel_consumption").sum().alias("total_fuel_consumption"),
+        (
+            iot_data.group_by(pl.col("timestamp").dt.date())
+            .agg(
+                ((pl.col("status") == "active").sum() / (24 * total_equipment)).alias(
+                    "equipment_utilization"
+                ),
+                pl.col("fuel_consumption").sum().alias("total_fuel_consumption"),
+            )
+            .sort("timestamp")
         )
-        .sort("timestamp")
-    ).rename({"timestamp": "date"}).filter((pl.col('equipment_utilization') > 0) & (pl.col('equipment_utilization') < 1))
+        .rename({"timestamp": "date"})
+        .filter(
+            (pl.col("equipment_utilization") > 0)
+            & (pl.col("equipment_utilization") < 1)
+        )
+    )
 
     return iot_data_daily
 
@@ -387,6 +403,7 @@ def transform_weather_data(weather_data: pl.DataFrame) -> pl.DataFrame:
 
     return weather_data.sort("date")
 
+
 def load_to_clickhouse(df: pl.DataFrame, table_name: str):
     """
     Connects to the ClickHouse server and loads a Polars DataFrame into the specified table.
@@ -396,14 +413,14 @@ def load_to_clickhouse(df: pl.DataFrame, table_name: str):
         return
 
     print(f"Loading {len(df)} rows to ClickHouse table: {table_name}...")
-    
+
     # try:
     client = clickhouse_connect.get_client(
-        host='clickhouse-server',
+        host="clickhouse-server",
         port=8123,
-        username=os.getenv('CLICKHOUSE_ETL_USER', 'etl_user'),
-        password=os.getenv('CLICKHOUSE_ETL_PASSWORD', 'etlpassword123'),
-        database='coal_mining_dwh'
+        username=os.getenv("CLICKHOUSE_ETL_USER", "etl_user"),
+        password=os.getenv("CLICKHOUSE_ETL_PASSWORD", "etlpassword123"),
+        database="coal_mining_dwh",
     )
 
     client.insert_df(table_name, df.to_pandas())
@@ -480,7 +497,9 @@ def main():
     load_to_clickhouse(anomaly_sql_data, "coal_mining_dwh.anomaly_production_log")
     load_to_clickhouse(anomaly_iot_data, "coal_mining_dwh.anomaly_iot_log")
     load_to_clickhouse(anomaly_weather_data, "coal_mining_dwh.anomaly_weather_log")
-    load_to_clickhouse(daily_production_metrics, "coal_mining_dwh.daily_production_metrics")
+    load_to_clickhouse(
+        daily_production_metrics, "coal_mining_dwh.daily_production_metrics"
+    )
 
 
 if __name__ == "__main__":
