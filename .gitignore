@@ -208,3 +208,7 @@ __marimo__/
 
 # Ignore Zone Identifier in WSL
 *:Zone.Identifier
+
+clickhouse/
+*clickhouse
+./clickhouse

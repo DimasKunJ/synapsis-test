@@ -3,3 +3,7 @@ connectorx
 pyarrow
 black
 python-dotenv
+requests
+numpy
+pandas
+clickhouse_connect

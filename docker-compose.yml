@@ -11,21 +11,59 @@ services:
       - "3306:3306"
     networks:
       - etl-networks
-
-  # etl-pipeline:
-  #   image: python:3.12-slim
-  #   container_name: etl-pipeline
-  #   depends_on:
-  #     - mysqldb-source
-  #   restart: always
-  #   volumes:
-  #     - ./script/etl:/app
-  #   working_dir: /app
+  etl-pipeline:
+    image: python:3.12-slim
+    container_name: etl-pipeline
+    depends_on:
+      - mysqldb-source
+      # - doris
+      # restart: always
+    environment:
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    volumes:
+      - ./script/etl:/app
+      - ./data:/app/data
+    working_dir: /app
+    networks:
+      - etl-networks
+    command: sh -c "pip install -r requirements.txt && python pipeline.py"
+  # doris:
+  #   image: yagagagaga/doris-standalone
+  #   container_name: doris
+  #   ports:
+  #     - "8030:8030"
+  #     - "8040:8040"
+  #     - "9030:9030"
   #   networks:
   #     - etl-networks
-  #   command: 
-  #     sh -c "while true; do sleep 3600; done"
-    # python pipeline.py
+  #   volumes:
+  #     - doris_fe_meta:/opt/apache-doris/fe/doris-meta
+  #     - doris_be_data:/opt/apache-doris/be/storage
+  clickhouse-server:
+    image: clickhouse/clickhouse-server:24.3.6
+    container_name: clickhouse-server
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+      # volumes:
+      # - ./data/clickhouse:/docker-entrypoint-initdb.d
+      # environment:
+      #   - CLICKHOUSE_DEFAULT_PASSWORD=clickhouse123
+    networks:
+      - etl-networks
+    # cap_add:
+    #   - SYS_NICE
+    #   - NET_ADMIN
+    #   - IPC_LOCK
+    #   - SYS_PTRACE
+
 
 networks:
   etl-networks:
